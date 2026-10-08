@@ -50,6 +50,28 @@ describe("WorkOrderStore", () => {
     expect(order.status).toBe("CLOSED");
     expect(order.closedAt).not.toBeNull();
   });
+
+  it("throws when closing a work order with open task cards", () => {
+    expect(() => store.close("WO-1042")).toThrow(
+      "Cannot close work order WO-1042: task cards still outstanding (TC-3, TC-4)",
+    );
+  });
+
+  it("throws when closing a work order with in-progress task cards", () => {
+    expect(() => store.close("WO-1037")).toThrow(
+      "Cannot close work order WO-1037: task cards still outstanding (TC-2)",
+    );
+  });
+
+  it("throws when closing an already closed work order", () => {
+    expect(() => store.close("WO-1036")).toThrow("Work order WO-1036 is already closed");
+  });
+
+  it("closes a work order when all task cards are done or deferred", () => {
+    const orderDeferred = store.close("WO-1039");
+    expect(orderDeferred.status).toBe("CLOSED");
+    expect(orderDeferred.closedAt).not.toBeNull();
+  });
 });
 
 describe("progress", () => {

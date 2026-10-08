@@ -1,5 +1,10 @@
 import { SEED_WORK_ORDERS } from "./seed";
-import type { TaskCard, TaskCardStatus, WorkOrder } from "./types";
+import {
+  getOutstandingTaskCards,
+  type TaskCard,
+  type TaskCardStatus,
+  type WorkOrder,
+} from "./types";
 
 export class WorkOrderStore {
   private orders: Map<string, WorkOrder>;
@@ -37,6 +42,16 @@ export class WorkOrderStore {
 
   close(orderId: string): WorkOrder {
     const order = this.require(orderId);
+    if (order.status === "CLOSED") {
+      throw new Error(`Work order ${orderId} is already closed`);
+    }
+    const outstanding = getOutstandingTaskCards(order);
+    if (outstanding.length > 0) {
+      const ids = outstanding.map((c) => c.id).join(", ");
+      throw new Error(
+        `Cannot close work order ${orderId}: task cards still outstanding (${ids})`,
+      );
+    }
     order.status = "CLOSED";
     order.closedAt = new Date().toISOString();
     return order;
