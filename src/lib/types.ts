@@ -34,9 +34,22 @@ export function isTaskCardStatus(value: unknown): value is TaskCardStatus {
   return TASK_CARD_STATUSES.includes(value as TaskCardStatus);
 }
 
+export function isTaskCardComplete(status: TaskCardStatus): boolean {
+  return status === "DONE" || status === "DEFERRED";
+}
+
+export function getOutstandingTaskCards(order: WorkOrder): TaskCard[] {
+  return order.taskCards.filter((card) => !isTaskCardComplete(card.status));
+}
+
+export function canCloseWorkOrder(order: WorkOrder): boolean {
+  return order.status !== "CLOSED" && getOutstandingTaskCards(order).length === 0;
+}
+
 export function progress(order: WorkOrder): { done: number; total: number } {
-  const done = order.taskCards.filter(
-    (card) => card.status === "DONE" || card.status === "DEFERRED",
+  const done = order.taskCards.filter((card) =>
+    isTaskCardComplete(card.status),
   ).length;
   return { done, total: order.taskCards.length };
 }
+
