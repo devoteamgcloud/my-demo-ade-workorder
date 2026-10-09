@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { WorkOrderStore } from "./store";
-import { progress } from "./types";
+import {
+  canCloseWorkOrder,
+  getOutstandingTaskCards,
+  isTaskCardComplete,
+  progress,
+} from "./types";
 
 let store: WorkOrderStore;
 
@@ -45,6 +50,28 @@ describe("WorkOrderStore", () => {
     expect(order.status).toBe("CLOSED");
     expect(order.closedAt).not.toBeNull();
   });
+
+  it("throws when closing a work order with open task cards", () => {
+    expect(() => store.close("WO-1042")).toThrow(
+      "Cannot close work order WO-1042: task cards still outstanding (TC-3, TC-4)",
+    );
+  });
+
+  it("throws when closing a work order with in-progress task cards", () => {
+    expect(() => store.close("WO-1037")).toThrow(
+      "Cannot close work order WO-1037: task cards still outstanding (TC-2)",
+    );
+  });
+
+  it("throws when closing an already closed work order", () => {
+    expect(() => store.close("WO-1036")).toThrow("Work order WO-1036 is already closed");
+  });
+
+  it("closes a work order when all task cards are done or deferred", () => {
+    const orderDeferred = store.close("WO-1039");
+    expect(orderDeferred.status).toBe("CLOSED");
+    expect(orderDeferred.closedAt).not.toBeNull();
+  });
 });
 
 describe("progress", () => {
@@ -53,3 +80,36 @@ describe("progress", () => {
     expect(progress(store.get("WO-1042")!)).toEqual({ done: 2, total: 4 });
   });
 });
+
+describe("domain task completion helpers", () => {
+  it("identifies complete and incomplete statuses", () => {
+    expect(isTaskCardComplete("DONE")).toBe(true);
+    expect(isTaskCardComplete("DEFERRED")).toBe(true);
+    expect(isTaskCardComplete("OPEN")).toBe(false);
+    expect(isTaskCardComplete("IN_PROGRESS")).toBe(false);
+  });
+
+  it("finds outstanding task cards on a work order", () => {
+    const order = store.get("WO-1042")!; // TC-1 DONE, TC-2 DONE, TC-3 OPEN, TC-4 OPEN
+    const outstanding = getOutstandingTaskCards(order);
+    expect(outstanding.map((c) => c.id)).toEqual(["TC-3", "TC-4"]);
+    expect(canCloseWorkOrder(order)).toBe(false);
+  });
+
+  it("allows closing when all task cards are DONE or DEFERRED", () => {
+    const orderDone = store.get("WO-1038")!; // TC-1 DONE, TC-2 DONE
+    expect(getOutstandingTaskCards(orderDone)).toEqual([]);
+    expect(canCloseWorkOrder(orderDone)).toBe(true);
+
+    const orderDeferred = store.get("WO-1039")!; // TC-1 DONE, TC-2 DEFERRED
+    expect(getOutstandingTaskCards(orderDeferred)).toEqual([]);
+    expect(canCloseWorkOrder(orderDeferred)).toBe(true);
+  });
+
+  it("does not allow closing an already closed work order", () => {
+    const closedOrder = store.get("WO-1036")!;
+    expect(closedOrder.status).toBe("CLOSED");
+    expect(canCloseWorkOrder(closedOrder)).toBe(false);
+  });
+});
+

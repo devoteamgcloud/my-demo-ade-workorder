@@ -9,7 +9,13 @@ import { SkeletonRows } from "@/components/skeleton-rows";
 import { StatusBadge, statusLabel } from "@/components/status-badge";
 import { getWorkOrder } from "@/lib/data";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { TASK_CARD_STATUSES, progress, type WorkOrder } from "@/lib/types";
+import {
+  TASK_CARD_STATUSES,
+  canCloseWorkOrder,
+  getOutstandingTaskCards,
+  progress,
+  type WorkOrder,
+} from "@/lib/types";
 
 export async function generateMetadata(
   props: PageProps<"/work-orders/[id]">,
@@ -40,6 +46,8 @@ async function WorkOrderDetail({ params }: { params: Promise<{ id: string }> }) 
   const order = await getWorkOrder(id);
   if (!order) notFound();
   const isClosed = order.status === "CLOSED";
+  const outstanding = getOutstandingTaskCards(order);
+  const canClose = canCloseWorkOrder(order);
 
   return (
     <>
@@ -52,14 +60,31 @@ async function WorkOrderDetail({ params }: { params: Promise<{ id: string }> }) 
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{order.title}</h1>
         </div>
         {!isClosed && (
-          <form action={closeWorkOrder.bind(null, order.id)}>
-            <button
-              type="submit"
-              className="h-10 rounded-lg bg-accent px-4 text-sm font-medium whitespace-nowrap text-accent-ink transition hover:opacity-90 active:scale-[0.98]"
-            >
-              Close work order
-            </button>
-          </form>
+          <div className="flex flex-col items-start gap-1.5 md:items-end">
+            <form action={closeWorkOrder.bind(null, order.id)}>
+              <button
+                type="submit"
+                disabled={!canClose}
+                aria-disabled={!canClose}
+                title={
+                  !canClose
+                    ? `Cannot close: task cards still outstanding (${outstanding.map((c) => c.id).join(", ")})`
+                    : undefined
+                }
+                className="h-10 rounded-lg bg-accent px-4 text-sm font-medium whitespace-nowrap text-accent-ink transition hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
+              >
+                Close work order
+              </button>
+            </form>
+            {!canClose && (
+              <p
+                className="text-xs text-muted"
+                data-testid="outstanding-tasks"
+              >
+                Outstanding: <span className="font-mono">{outstanding.map((c) => c.id).join(", ")}</span>
+              </p>
+            )}
+          </div>
         )}
       </div>
 
